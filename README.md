@@ -10,3 +10,12 @@ To create a falling segment, press keys in a column. The first key press determi
 - Pressing keys in a running column will recreate its segment (in accordance with the presses).
 - To cancel an in-progress segment creation (you've pressed one or two keys in a column, but changed your mind and don't want to execute the segment creation), press the bottom key in that column before releasing the other keys.
   - Except for the bottom row to cancel the segment creation, any further key presses after the first two when creating a segment are ignored.
+
+# notes
+## todo
+- implement midi clocking
+- change internal clock rate via config page
+- document config page, reset mechanism, and bank editing process
+
+## ideas
+- auto midi clock: when midi clock is received, sync to it (ticking only progresses when midi clock is received). To automatically disconnect and restore internal clock, have a metro running once every few seconds that sets a variable to false. Every time midi clock is received, it sets this to true. If the function runs and the variable is false, midi clock hasn't been received in x seconds, switch to internal clock.
