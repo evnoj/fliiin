@@ -7,6 +7,7 @@
 
 -- midi note velocity
 vel = 127
+default_clock_mode = "auto" -- "auto", "internal", or "midi"
 
 -- up to 16 banks
 note_bank = 1 -- initial bank
@@ -17,12 +18,10 @@ note_banks[2] = { 24, 29, 34, 39, 44, 49, 54, 59, 64, 69, 74, 79, 84, 89, 94, 99
 -- ascending fifths
 note_banks[3] = { 12, 19, 26, 33, 40, 47, 54, 61, 68, 75, 82, 89, 96, 103, 110, 117, }
 
--- up to 16 banks
-chan_bank = 1 -- initial bank
-chan_banks = {}
-chan_banks[1] = { 1, 1, 1, 1, 1, 1, 1, 1, 1,  1,  1,  1,  1,  1,  1,  1, }
-chan_banks[2] = { 2, 2, 2, 2, 2, 2, 2, 2, 2,  2,  2,  2,  2,  2,  2,  2, }
-chan_banks[3] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, }
+-- the midi channels the columns output on at startup
+-- configurable at runtime, but no on device preset saving yet
+chans = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, }
+-- chans = { 1, 1, 1, 1, 1, 1, 1, 1, 1,  1,  1,  1,  1,  1,  1,  1, }
 
 local function note_on(col)
   midi_note_on(col.note + transpose + 12 * octave, col.vel, col.ch)
@@ -86,11 +85,51 @@ end
 local function redraw()
   grid_led_all(0)
 
-  if config_page then
+  if config_page.active then
     grid_led(note_bank, 2, 15)
+
+    for i=1,12 do
+      grid_led(i, 3, 2)
+    end
     grid_led(transpose + 1, 3, 15)
-    grid_led(3 + octave, 4, 15)
-    grid_led(chan_bank, 5, 15)
+
+    for i=0,2 do
+      grid_led(14+i, 3, i+1)
+    end
+    grid_led(15 + octave, 3, 15)
+
+    grid_led(config_page.ch_col_select, 4, 15)
+    grid_led(cols[config_page.ch_col_select].ch, 5, 15)
+
+    local level = 15
+    for i=0,4 do
+      grid_led(12 + i, 6, i+1)
+    end
+    if clock.source == "internal" then
+      grid_led(12 + clock.internal_divider, 6, 15)
+    else
+      grid_led(12 + clock.midi_divider, 6, 15)
+      level = 6
+    end
+    for i=1,10 do
+      grid_led(i, 6, 3)
+      grid_led(i, 7, 1)
+    end
+    grid_led(clock.coarse, 6, level)
+    grid_led(clock.fine, 7, level)
+
+    if clock.mode == "auto" then
+      grid_led(16, 7, 15)
+      if clock.source == "internal" then
+        grid_led(14, 7, 2)
+      elseif clock.source == "midi" then
+        grid_led(15, 7, 2)
+      end
+    elseif clock.mode == "internal" then
+      grid_led(14, 7, 15)
+    elseif clock.mode == "midi" then
+      grid_led(15, 7, 15)
+    end
   else
     for _,col in pairs(running_cols) do
       draw_col(col)
@@ -129,23 +168,14 @@ local function change_note_bank(n)
   end
 end
 
-local function change_chan_bank(n)
-  if not chan_banks[n] then
-    print("no channel bank at index "..n)
-    return
-  end
-
-  chan_bank = n
-  chans = chan_banks[n]
-
-  for x,col in pairs(cols) do
-    if col.on then
-      note_off(col)
-      col.ch = chans[x]
-      note_on(col)
-    else
-      col.ch = chans[x]
-    end
+local function change_chan(x, chan)
+  if running_cols[x] and running_cols[x].on then
+    local col = running_cols[x]
+    note_off(col)
+    col.ch = chan
+    note_on(col)
+  else
+    cols[x].ch = chan
   end
 end
 
@@ -173,26 +203,149 @@ local function change_octave(oct)
   end
 end
 
+local function midi_tick(d1,d2,d3,d4)
+  clock.midi_received = true
+
+  if d1==8 and d2==240 then
+    ticks = ((ticks + 1) % 12)
+    if ticks == 0 and midi_clock_in then tick() end
+  else
+    -- ps("midi_rx %d %d %d %d",d1,d2,d3,d4)
+  end
+end
+
+local function midi_ignore(d1,d2,d3,d4)
+  
+end
+
+local function midi_await(d1,d2,d3,d4)
+  if d1==8 and d2==240 then
+    -- ticks = ((ticks + 1) % 12)
+    -- if ticks == 0 and midi_clock_in then tick() end
+
+    clock.source = "midi"
+    update_clock(clock)
+
+    if config_page.active then
+      redraw()
+    end
+  end
+
+end
+
+local function midi_timeout_check()
+  if clock.midi_received == false and clock.mode == "auto" then
+    clock.source="internal"
+    update_clock(clock)
+
+    if config_page.active then
+      redraw()
+    end
+  end
+end
+
+function bpm_to_ms(bpm)
+  return math.floor(60 / bpm / 32 * 1000)
+end
+
+function update_clock(clock)
+  if clock.mode == "auto" then
+    if clock.source == "midi" then
+      if not clock.midi_timeout_check then
+        clock.midi_timeout_check = metro.new(midi_timeout_check, 3000)
+      end
+
+      midi_rx = midi_tick
+    else
+      midi_rx = midi_await
+    end
+  elseif clock.mode == "internal" then
+    clock.source = "internal"
+  elseif clock.mode == "midi" then
+    clock.source = "midi"
+  end
+
+  if clock.source == "internal" then
+    local bpm =  0 + 20 * (clock.coarse - 1) + 2 * (clock.fine - 1)
+    bpm = bpm * (1/4 * 2^(clock.internal_divider))
+    bpm = math.max(1, bpm)
+
+    if bpm ~= clock.bpm then
+      clock.bpm = bpm
+      clock.dirty = true
+    end
+
+    if not clock.ticker then
+      clock.ticker = metro.new(tick, bpm_to_ms(bpm))
+      clock.dirty = false
+    end
+  elseif clock.source == "midi" then
+    clock.bpm = nil
+
+    if clock.ticker then
+      metro.stop(clock.ticker)
+      clock.ticker = nil
+    end
+
+    midi_rx = midi_tick
+  end
+end
+
 grid = function(x,y,z)
-  if config_page then
+  if config_page.active then
     if z == 1 then
       if y == 2 then
         change_note_bank(x)
-      elseif y == 3 and x <= 12 then
+      elseif y == 3 then
+        if x <= 12 then
         change_transpose(x - 1)
-      elseif y == 4 and x <= 5 then
-        change_octave(x - 3)
+        elseif x >= 14 then
+          change_octave(x - 15)
+        end
+      elseif y == 4 then
+        config_page.ch_col_select = x
       elseif y == 5 then
-        change_chan_bank(x)
+        change_chan(config_page.ch_col_select, x)
+      elseif y == 6 then
+        if x <= 10 then
+          if clock.source == "internal" then
+            clock.coarse = x
+          end
+        elseif x >= 12 then
+          if clock.source == "internal" then
+            clock.internal_divider = x-12
+          elseif clock.source == "midi" then
+          end
+        end
+
+        update_clock(clock)
+      elseif y == 7 then
+        if x <= 10 then
+          if clock.source == "internal" then
+            clock.fine = x
+          end
+
+          update_clock(clock)
+        elseif x >= 14 then
+          if x == 14 then
+            clock.mode = "internal"
+          elseif x == 15 then
+            clock.mode = "midi"
+          elseif x == 16 then
+            clock.mode = "auto"
+          end
+
+          update_clock(clock)
+        end
       elseif y == grid_height and x == 1 then -- exit config page
-        config_page = false
+        config_page.active = false
       end
     end
   else
     if y == grid_height then
       if z == 1 then
         if x == 1 and cols[16].keys.div.z == 1 and not cols[16].keys.len.y then
-          config_page = true
+          config_page.active = true
           cols[16].keys.div.y = nil
           cols[16].keys.div.z = 0
         elseif x == 16 and cols[1].keys.div.z == 1 and not cols[1].keys.len.y then
@@ -258,24 +411,19 @@ grid = function(x,y,z)
 end
 
 tick = function()
+  -- print("tick")
   for _,col in pairs(running_cols) do
     tick_col(col)
-    -- if not config_page then
-    --   grid_led_all(0)
-    --   draw_col(col)
-    --   grid_refresh()
-    -- end
   end
 
-  redraw()
-end
+  if not config_page.active then
+    redraw()
+  end
 
-midi_rx = function(d1,d2,d3,d4)
-  if d1==8 and d2==240 then
-    ticks = ((ticks + 1) % 12)
-    if ticks == 0 and midi_clock_in then tick() end
-  else
-    -- ps("midi_rx %d %d %d %d",d1,d2,d3,d4)
+  if clock.dirty then
+    metro.stop(clock.ticker)
+    clock.ticker = metro.new(tick, bpm_to_ms(clock.bpm))
+    clock.dirty = false
   end
 end
 
@@ -290,18 +438,12 @@ local function init()
     end
   end
 
-  for n,bank in pairs(chan_banks) do
-    for i,chan in ipairs(bank) do
-      if not (1 <= chan and chan <= 16) then
-        print("init error: channel bank "..n.." chan "..i.." has value "..chan..", allowed range 1-16")
-        return
-      end
-    end
-  end
-
   grid_height = grid_size_y()
   height = grid_height * 2
-  config_page = false
+  config_page = {
+    active = false,
+    ch_col_select = 1
+  }
   transpose = 0
   octave = 0
   cols = {}
@@ -330,7 +472,7 @@ local function init()
     local col = {}
     col.x = i
     col.note = note_banks[note_bank][i]
-    col.ch = chan_banks[chan_bank][i]
+    col.ch = chans[i]
     col.vel = vel
     col.on = false
     col.keys = {}
@@ -340,10 +482,17 @@ local function init()
     cols[i] = col
   end
 
-  if not midi_clock_in then
-  	-- 150ms per step
-  	metro.new(tick, 50)
+  clock ={
+    coarse = 7, -- 1-10
+    fine = 1, -- 1-12
+    mode = default_clock_mode, -- "auto", "internal", "midi"
+    internal_divider = 2, -- 0-4, 2 is center, adjacent steps mult/div by 2
+    midi_divider = 2
+  }
+  if clock.mode == "auto" then
+    clock.source = "internal"
   end
+  update_clock(clock)
 end
 
 init()
