@@ -7,8 +7,9 @@
 
 grid_height = grid_size_y()
 height = grid_height * 2
-local notes = { 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23, 24, 26, 28 }
-local chans = { 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23, 24, 26, 28 }
+notes = { 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23, 24, 26, 28 }
+chans = { 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23, 24, 26, 28 }
+vel = 127
 
 local function tick_col(col)
   col.div_tick = (col.div_tick + 1) % col.div
@@ -19,12 +20,12 @@ local function tick_col(col)
 
   if col.pos - col.len <= 0 then
     if not col.on then
-      -- send midi note on
+      midi_note_on(col.note, col.vel, col.ch)
       col.on = true
     end
   else
     if col.on then
-      -- send midi note off
+      midi_note_off(col.note, col.vel, col.ch)
       col.on = false
     end
   end
@@ -41,7 +42,7 @@ end
 
 local function stop_col(col)
   if col.on then
-    -- send midi note off
+    midi_note_off(col.note, col.vel, col.ch)
   end
 
   col.on = false
@@ -136,17 +137,18 @@ tick = function()
 end
 
 midi_rx = function(d1,d2,d3,d4)
-	if d1==8 and d2==240 then
-		ticks = ((ticks + 1) % 12)
-		if ticks == 0 and midi_clock_in then tick() end
-	else
-		-- ps("midi_rx %d %d %d %d",d1,d2,d3,d4)
-	end
+  if d1==8 and d2==240 then
+    ticks = ((ticks + 1) % 12)
+    if ticks == 0 and midi_clock_in then tick() end
+  else
+    -- ps("midi_rx %d %d %d %d",d1,d2,d3,d4)
+  end
 end
 
 -- init
 cols = {}
 running_cols = {}
+-- ex. reference for fields of a column
 local col_ex = {
   x = 1, -- x coord
   pos = 0, -- leading square
@@ -170,6 +172,7 @@ for i=1,grid_size_x() do
   col.x = i
   col.note = notes[i]
   col.ch = chans[i]
+  col.vel = vel
   col.on = false
   col.keys = {}
   col.keys.div = {}
