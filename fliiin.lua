@@ -1,30 +1,47 @@
--- flin
+-- fliiin
 --
 -- cyclic poly-rhythm music box
 --
--- originally by tehn
--- adapted for iii by evnoj
+-- originally created as "flin" by tehn
+-- adapted for iii by evnojb
 
--- midi note velocity
-vel = 127
+----- BEGIN CONFIGURATION VARIABLES -----
+vel = 127 -- midi note velocity, 1-127
 default_clock_mode = "auto" -- "auto", "internal", or "midi"
 default_internal_bpm = 120 -- 2-198, MUST BE EVEN (config UI only supports even internal bpms)
 
--- up to 16 banks
-note_bank = 1 -- initial bank
-note_banks = {}
-note_banks[1] = { 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23, 24, 26, 28, }
-note_banks[4] = { 38, 40, 41, 43, 45, 47, 48, 50, 52, 53, 55, 57, 59, 60, 62, 64, }
--- ascending fourths
-note_banks[2] = { 24, 29, 34, 39, 44, 49, 54, 59, 64, 69, 74, 79, 84, 89, 94, 99, }
+note_banks = {} -- don't change this line
+-- edit note banks here, up to 16 banks
+default_note_bank = 1 -- initial bank
+-- all default note banks start on C
+-- major pentatonic
+note_banks[1]  = { 48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72, 74, 76, 79, 81, 84, }
+-- major diatonic
+note_banks[2]  = { 48, 50, 52, 53, 55, 57, 59, 60, 62, 64, 65, 67, 69, 71, 72, 74, }
+-- minor pentatonic
+note_banks[3]  = { 48, 51, 53, 55, 58, 60, 63, 65, 67, 70, 72, 75, 77, 79, 82, 84, }
+-- minor diatonic
+note_banks[4]  = { 48, 50, 51, 53, 55, 56, 58, 60, 62, 63, 65, 67, 68, 70, 72, 74, }
+-- mixolydian pentatonic
+note_banks[5]  = { 48, 50, 53, 55, 58, 60, 62, 65, 67, 70, 72, 74, 77, 79, 82, 84, }
+-- mixolydian diatonic
+note_banks[6]  = { 48, 50, 52, 53, 55, 57, 58, 60, 62, 64, 65, 67, 69, 70, 72, 74, }
+-- phrygian diatonic
+note_banks[7]  = { 48, 49, 51, 53, 55, 56, 58, 60, 61, 63, 65, 67, 68, 70, 72, 73, }
+-- dorian diatonic
+note_banks[8]  = { 48, 50, 51, 53, 55, 57, 58, 60, 62, 63, 65, 67, 69, 70, 72, 74, }
 -- ascending fifths
-note_banks[3] = { 12, 19, 26, 33, 40, 47, 54, 61, 68, 75, 82, 89, 96, 103, 110, 117, }
+note_banks[9]  = { 36, 43, 50, 57, 64, 71, 78, 85, 36, 43, 50, 57, 64, 71, 78, 85, }
+-- ascending fourths
+note_banks[10] = { 36, 41, 46, 51, 56, 61, 66, 71, 36, 41, 46, 51, 56, 61, 66, 71, }
 
 -- the midi channels the columns output on at startup
--- configurable at runtime, but no on device preset saving yet
+-- configurable at runtime via the config page
 chans = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, }
 -- chans = { 1, 1, 1, 1, 1, 1, 1, 1, 1,  1,  1,  1,  1,  1,  1,  1, }
+----- END CONFIGURATION VARIABLES -----
 
+-- DRAWING
 local function draw_col(col)
   local x = col.x
   local y = col.pos
@@ -38,7 +55,7 @@ local function redraw()
   grid_led_all(0)
 
   if config_page.active then
-    grid_led(note_bank, 2, 15)
+    grid_led(default_note_bank, 2, 15)
 
     for i=1,12 do
       grid_led(i, 3, 2)
@@ -91,6 +108,7 @@ local function redraw()
   grid_refresh()
 end
 
+-- COLUMN LOGIC
 local function note_on(col)
   midi_note_on(col.note + transpose + 12 * octave, col.vel, col.ch)
 end
@@ -141,42 +159,6 @@ local function start_col(col, div, len)
   running_cols[col.x] = col
 end
 
-local function tick()
-  -- print("tick")
-  for _,col in pairs(running_cols) do
-    tick_col(col)
-  end
-
-  if not config_page.active then
-    redraw()
-  end
-end
-
-local function internal_tick()
-  tick()
-
-  if clock.dirty then
-    start_internal_ticker(bpm_to_ms(clock.internal_bpm))
-    clock.dirty = false
-  end
-end
-
-local function midi_tick()
-  tick()
-end
-
-local function start_internal_ticker(time)
-  metro.stop(clock.ticker)
-  clock.internal_ticker_ms = math.floor(time / clock.internal_calculated_time_div)
-  clock.ticker = metro.new(internal_tick, clock.internal_ticker_ms)
-end
-
-local function start_midi_ticker(time)
-  metro.stop(clock.ticker)
-  clock.midi_ticker_ms = math.floor(time / clock.midi_calculated_time_div)
-  clock.ticker = metro.new(midi_tick, clock.midi_ticker_ms, 4*2^(clock.midi_divider))
-end
-
 local function reset_cols(cols)
   for x,col in pairs(cols) do
     col.pos = height
@@ -186,61 +168,7 @@ local function reset_cols(cols)
   redraw()
 end
 
-local function change_note_bank(n)
-  if not note_banks[n] then
-    print("no note bank at index "..n)
-    return
-  end
-
-  note_bank = n
-  notes = note_banks[n]
-
-  for x,col in pairs(cols) do
-    if col.on then
-      note_off(col)
-      col.note = notes[x]
-      note_on(col)
-    else
-      col.note = notes[x]
-    end
-  end
-end
-
-local function change_chan(x, chan)
-  if running_cols[x] and running_cols[x].on then
-    local col = running_cols[x]
-    note_off(col)
-    col.ch = chan
-    note_on(col)
-  else
-    cols[x].ch = chan
-  end
-end
-
-local function change_transpose(t)
-  local prev_t = transpose
-  transpose = t
-
-  for x,col in pairs(running_cols) do
-    if col.on then
-      midi_note_off(col.note + prev_t + 12 * octave, col.vel, col.ch)
-      note_on(col)
-    end
-  end
-end
-
-local function change_octave(oct)
-  local prev_oct = octave
-  octave = oct
-
-  for x,col in pairs(running_cols) do
-    if col.on then
-      midi_note_off(col.note + transpose + 12 * prev_oct, col.vel, col.ch)
-      note_on(col)
-    end
-  end
-end
-
+-- CLOCKWORK
 local function bpm_to_ms(bpm)
   return math.floor(60 / bpm / 16 * 1000)
 end
@@ -262,16 +190,42 @@ local function sixteenth_to_bpm(ms)
   return math.floor(bpm * 100) / 100
 end
 
--- utility to help with user-defined default internal bpm
-local function bpm_to_coarse_fine(bpm)
-  if bpm % 2 ~= 0 or bpm < 2 or 198 < bpm then
-    error("bpm must be even integer in range 2-198, was "..bpm, 2)
+local tick, internal_tick, midi_tick, start_internal_ticker, start_midi_ticker
+
+function tick()
+  -- print("tick")
+  for _,col in pairs(running_cols) do
+    tick_col(col)
   end
 
-  local coarse = math.floor(bpm/20)
-  local fine =  math.floor((bpm - coarse*20) / 2)
+  if not config_page.active then
+    redraw()
+  end
+end
 
-  return coarse+1,fine+1
+function internal_tick()
+  tick()
+
+  if clock.dirty then
+    start_internal_ticker(bpm_to_ms(clock.internal_bpm))
+    clock.dirty = false
+  end
+end
+
+function midi_tick()
+  tick()
+end
+
+function start_internal_ticker(time)
+  metro.stop(clock.ticker)
+  clock.internal_ticker_ms = math.floor(time / clock.internal_calculated_time_div)
+  clock.ticker = metro.new(internal_tick, clock.internal_ticker_ms)
+end
+
+function start_midi_ticker(time)
+  metro.stop(clock.ticker)
+  clock.midi_ticker_ms = math.floor(time / clock.midi_calculated_time_div)
+  clock.ticker = metro.new(midi_tick, clock.midi_ticker_ms, 4*2^(clock.midi_divider))
 end
 
 local function midi_sync(d1,d2,d3,d4)
@@ -385,7 +339,75 @@ function update_clock(clock)
   end
 end
 
-grid = function(x,y,z)
+-- CONFIG PAGE
+local function change_note_bank(n)
+  if not note_banks[n] then
+    print("no note bank at index "..n)
+    return
+  end
+
+  default_note_bank = n
+  notes = note_banks[n]
+
+  for x,col in pairs(cols) do
+    if col.on then
+      note_off(col)
+      col.note = notes[x]
+      note_on(col)
+    else
+      col.note = notes[x]
+    end
+  end
+end
+
+local function change_chan(x, chan)
+  if running_cols[x] and running_cols[x].on then
+    local col = running_cols[x]
+    note_off(col)
+    col.ch = chan
+    note_on(col)
+  else
+    cols[x].ch = chan
+  end
+end
+
+local function change_transpose(t)
+  local prev_t = transpose
+  transpose = t
+
+  for x,col in pairs(running_cols) do
+    if col.on then
+      midi_note_off(col.note + prev_t + 12 * octave, col.vel, col.ch)
+      note_on(col)
+    end
+  end
+end
+
+local function change_octave(oct)
+  local prev_oct = octave
+  octave = oct
+
+  for x,col in pairs(running_cols) do
+    if col.on then
+      midi_note_off(col.note + transpose + 12 * prev_oct, col.vel, col.ch)
+      note_on(col)
+    end
+  end
+end
+
+-- utility to help with user-defined default internal bpm
+local function bpm_to_coarse_fine(bpm)
+  if bpm % 2 ~= 0 or bpm < 2 or 198 < bpm then
+    error("bpm must be even integer in range 2-198, was "..bpm, 2)
+  end
+
+  local coarse = math.floor(bpm/20)
+  local fine =  math.floor((bpm - coarse*20) / 2)
+
+  return coarse+1,fine+1
+end
+
+function grid(x,y,z)
   if config_page.active then
     if z == 1 then
       if y == 2 then
@@ -471,9 +493,6 @@ grid = function(x,y,z)
           col.keys.len.y = y
           col.keys.len.z = 1
         end
-
-        -- config page
-        --
       else
         if y == col.keys.div.y then
           col.keys.div.z = 0
@@ -551,7 +570,7 @@ local function init()
   for i=1,grid_size_x() do
     local col = {}
     col.x = i
-    col.note = note_banks[note_bank][i]
+    col.note = note_banks[default_note_bank][i]
     col.ch = chans[i]
     col.vel = vel
     col.on = false
