@@ -1,10 +1,9 @@
 # fliiin
 an [iii](https://monome.org/docs/iii/) (grid) implementation of [flin](https://monome.org/docs/grid/app/terms/#flin)
 
-# what it is
 fliiin is a polyrhythmic cycling midi note generator.
 
-Each column has a segment that is falling in a virtual space that is twice as high as the grid. The grid is a window into the top half of this space. When a segment falls off the bottom of the grid, they continue falling through this space. When they hit the bottom, they wrap around back to the top. The top row is the playhead row. While a segment crosses this row (i.e. the LED is lit), that column's note is active.
+each column has a segment that is falling in a virtual space that is twice as high as the grid. The grid is a window into the top half of this space. When a segment falls off the bottom of the grid, they continue falling through this space. When they hit the bottom, they wrap around back to the top. The top row is the playhead row. While a segment crosses this row (i.e. the LED is lit), that column's note is active.
 - midi note on sent when the LED lights, midi note off sent when it goes dark
 
 # usage
@@ -56,18 +55,23 @@ config can be changed live via the config page.
 
 access the config page by pressing and holding the upper right corner, then pressing the lower left corner: <img src="docs/enter-config-page.jpg" width="500" alt="enter config page">
 
-exit the config page by pressing the lower left corner: <img src="docs/config-page.jpg" width="800" alt="config page">
+exit the config page by pressing the lower left corner key: <img src="docs/config-page.jpg" width="800" alt="config page">
 
 - row 2: note bank, 1-16
   - the note banks can only be edit
-
-# notes
-## roadmap
-- on-device preset saving
-  - waiting for new iii release
-- on-device note editing
-  - need preset saving first
-
-## todo
-- make default note banks
-- add video to readme
+- row 3: transposition
+  - (1,3) to (12,3): semitone transposition
+  - (14,3) to (16,3): octave transposition, (15,3) is no transposition, can go up or down one octave
+- rows 4 and 5: select the midi channel that a column sends it note on. row 4 selects the column, and row 5 shows that column's current midi channel, press a key in row 5 to change the channel
+  - the default midi channels can be changed by [editing the script](#editing-the-script)
+- rows 6 and 7: clock settings
+  - (1,6) to (10,6) sets interanl bpm in increments of 20, (1,7) to (10,7) adds to the row above in increments of 2
+    - this bpm only applies for internal clocking
+  - (12,6) to (16,6): clock divisions, where left is slower and right is faster
+    - internal and midi maintain separate clock divisions
+  - (14,7) to (16,7): set the clock source
+    - (14,7): internal clock
+    - (15,7): midi clock
+    - (16,7): auto mode. When midi clock is received, internal clock is disabled and fliiin begins following the midi clock. If midi clock isn't received for several seconds, automatically switches back to internal clock.
+- lower left corner key exits the config page
+  - (1,16) on grid zero, (1,8) on grid one
