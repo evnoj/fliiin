@@ -17,7 +17,7 @@ to create a falling segment, press keys in a column. The first key press determi
   - except for the bottom row to cancel the segment creation, any further key presses after the first two when creating a segment are ignored
 - to reset all falling segments to the top, press and hold the upper left corner key and then press the lower right corner key
 
-# config page
+# config
 most config can be set via the [config page](#config-page), but some can only be set by [editing the script](#editing-the-script) (like the [note banks](#editing-note-banks))
 
 ## editing the script
@@ -67,7 +67,7 @@ exit the config page by pressing the lower left corner key: <img src="docs/confi
 - rows 4 and 5: select the midi channel that a column sends it note on. row 4 selects the column, and row 5 shows that column's current midi channel, press a key in row 5 to change the channel
   - the default midi channels can be changed by [editing the script](#editing-the-script)
 - rows 6 and 7: clock settings
-  - (1,6) to (10,6) sets interanl bpm in increments of 20, (1,7) to (10,7) adds to the row above in increments of 2
+  - (1,6) to (10,6) sets internal bpm in increments of 20, (1,7) to (10,7) adds to the row above in increments of 2
     - this bpm only applies for internal clocking
   - (12,6) to (16,6): clock divisions, where left is slower and right is faster
     - internal and midi maintain separate clock divisions
