@@ -5,7 +5,7 @@ fliiin is a polyrhythmic cycling midi note generator.
 
 https://github.com/user-attachments/assets/24b14d82-bc27-4c80-86bd-e00d7360dfd1
 
-each column has a segment that is falling in a virtual space that is twice as high as the grid. The grid is a window into the top half of this space. When a segment falls off the bottom of the grid, they continue falling through this space. When they hit the bottom, they wrap around back to the top. The top row is the playhead row. While a segment crosses this row (i.e. the LED is lit), that column's note is active.
+each column can have a segment that is falling in a virtual space that is twice as high as the grid. The grid is a window into the top half of this space. When a segment falls off the bottom of the grid, they continue falling through this space. When they hit the bottom, they wrap around back to the top. The top row is the playhead row. While a segment crosses this row (i.e. the LED is lit), that column's note is active.
 - midi note on sent when the LED lights, midi note off sent when it goes dark
 
 # usage

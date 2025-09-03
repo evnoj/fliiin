@@ -3,7 +3,7 @@
 -- cyclic poly-rhythm music box
 --
 -- originally created as "flin" by tehn
--- adapted for iii by evnojb
+-- adapted for iii by evnoj
 
 ----- BEGIN CONFIGURATION VARIABLES -----
 vel = 127 -- midi note velocity, 1-127
